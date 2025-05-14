@@ -7,10 +7,12 @@ use App\Models\Guru;
 use App\Models\Image;
 use App\Models\Izin;
 use App\Models\Kehadiran;
+use App\Models\OrangTua;
 use App\Models\Siswa;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 
 class PresensiController extends Controller
@@ -220,12 +222,78 @@ class PresensiController extends Controller
         return $this->success($data);
     }
 
+    // public function presensi(Request $request)
+    // {
+    //     $currentTime = Carbon::now('Asia/Jakarta');
+    //     $tanggalFormatted = $currentTime->format('Y-m-d');
+    //     $waktuPulang = Carbon::parse('10:00:00', 'Asia/Jakarta');
+    //     $batasWaktuDatang = Carbon::parse('07:00:00', 'Asia/Jakarta');
+
+    //     // Cek apakah ada input RFID, gunakan untuk mencari siswa
+    //     if ($request->has('rfid')) {
+    //         $siswa = Siswa::where('rfid_code', $request->rfid)->first();
+    //         if (!$siswa) {
+    //             return response()->json(['message' => 'RFID tidak valid'], 404);
+    //         }
+    //         $siswa_id = $siswa->id;
+    //     } else {
+    //         // Jika tidak ada RFID, gunakan ID dari akun yang login
+    //         $siswa_id = Auth::user()->siswa_id;
+    //     }
+
+    //     // Periksa apakah siswa sudah melakukan presensi hari ini
+    //     $absen = Kehadiran::where('siswa_id', $siswa_id)
+    //         ->where('tanggal', $tanggalFormatted)
+    //         ->first();
+
+    //     if ($absen) {
+    //         if ($absen->waktu_pulang) {
+    //             return response()->json(['message' => 'Anda sudah absen pulang hari ini.'], 422);
+    //         } elseif ($currentTime->greaterThanOrEqualTo($waktuPulang)) {
+    //             $absen->update(['waktu_pulang' => $currentTime]);
+    //             return response()->json(['status' => 'pulang', 'message' => 'Berhasil Absen  Pulang', 'data' => $absen], 201);
+    //         } else {
+    //             return response()->json(['message' => 'Belum waktunya  pulang.'], 422);
+    //         }
+    //     } else {
+    //         // Presensi datang jika belum dilakukan
+    //         $keterangan = $currentTime->greaterThanOrEqualTo($batasWaktuDatang) ? 'telat' : 'hadir';
+    //         $absen = Kehadiran::create([
+    //             'siswa_id' => $siswa_id,
+    //             'tanggal' => $tanggalFormatted,
+    //             'keterangan' => $keterangan,
+    //             'waktu_datang' => $currentTime,
+    //         ]);
+    //         return response()->json(['status' => 'datang', 'message' => 'Berhasil Absen  Datang', 'data' => $absen], 200);
+    //     }
+
+    //     // Setelah jam pulang, tetapkan siswa yang belum absen sebagai alpha
+    //     if ($currentTime->greaterThanOrEqualTo($waktuPulang)) {
+    //         $siswaBelumAbsen = Siswa::whereNotIn('id', function ($query) use ($tanggalFormatted) {
+    //             $query->select('siswa_id')
+    //                 ->from('kehadiran')
+    //                 ->where('tanggal', $tanggalFormatted);
+    //         })->get();
+
+    //         foreach ($siswaBelumAbsen as $siswa) {
+    //             Kehadiran::create([
+    //                 'siswa_id' => $siswa->id,
+    //                 'tanggal' => $tanggalFormatted,
+    //                 'keterangan' => 'alpha',
+    //                 'waktu_datang' => null,
+    //                 'waktu_pulang' => null,
+    //             ]);
+    //         }
+    //     }
+    // }
+
     public function presensi(Request $request)
     {
         $currentTime = Carbon::now('Asia/Jakarta');
         $tanggalFormatted = $currentTime->format('Y-m-d');
-        $waktuPulang = Carbon::parse('10:00:00', 'Asia/Jakarta');
-        $batasWaktuDatang = Carbon::parse('07:00:00', 'Asia/Jakarta');
+        $waktuPulang = Carbon::parse('15:00:00', 'Asia/Jakarta');
+        $batasWaktuDatang = Carbon::parse('13:00:00', 'Asia/Jakarta');
+        $keterangan = $currentTime->greaterThanOrEqualTo($batasWaktuDatang) ? 'telat' : 'hadir';
 
         // Cek apakah ada input RFID, gunakan untuk mencari siswa
         if ($request->has('rfid')) {
@@ -249,6 +317,7 @@ class PresensiController extends Controller
                 return response()->json(['message' => 'Anda sudah absen pulang hari ini.'], 422);
             } elseif ($currentTime->greaterThanOrEqualTo($waktuPulang)) {
                 $absen->update(['waktu_pulang' => $currentTime]);
+                $this->sendPresensiMessage($siswa_id, 'pulang', $currentTime, $keterangan);
                 return response()->json(['status' => 'pulang', 'message' => 'Berhasil Absen  Pulang', 'data' => $absen], 201);
             } else {
                 return response()->json(['message' => 'Belum waktunya  pulang.'], 422);
@@ -262,6 +331,7 @@ class PresensiController extends Controller
                 'keterangan' => $keterangan,
                 'waktu_datang' => $currentTime,
             ]);
+            $this->sendPresensiMessage($siswa_id, 'datang', $currentTime, $keterangan);
             return response()->json(['status' => 'datang', 'message' => 'Berhasil Absen  Datang', 'data' => $absen], 200);
         }
 
@@ -283,6 +353,40 @@ class PresensiController extends Controller
                 ]);
             }
         }
+    }
+
+    private function sendPresensiMessage($siswaId, $jenisPresensi, $waktu, $keterangan = null)
+    {
+        $siswa = Siswa::findOrFail($siswaId);
+        $orangTua = OrangTua::findOrFail($siswa->orang_tua_id); // Pastikan relasi sudah benar
+        $nomorTelepon = $orangTua->no_hp; // Sesuaikan dengan nama kolom yang benar
+        $namaSiswa = $siswa->nama;
+        $waktuFormatted = $waktu->format('H:i:s');
+        $pesan = '';
+
+        if ($jenisPresensi == 'datang') {
+            $statusTambahan = '';
+            if ($keterangan == 'telat') {
+                $statusTambahan = ' (terlambat)';
+            }
+            $pesan = "Anak Anda, {$namaSiswa}, telah sampai di sekolah pada pukul {$waktuFormatted}{$statusTambahan}.";
+        } elseif ($jenisPresensi == 'pulang') {
+            $pesan = "Anak Anda, {$namaSiswa}, telah pulang dari sekolah pada pukul {$waktuFormatted}.";
+        }
+
+        // Gunakan fungsi yang sudah ada untuk mengirim pesan (dari contoh sebelumnya)
+        $this->sendFonnteMessage($nomorTelepon, $pesan);
+    }
+
+    private function sendFonnteMessage($target, $message)
+    {
+
+        $response = Http::withHeaders([
+            'Authorization' => 'od15928msSxfMqurq1qi',
+        ])->post('https://api.fonnte.com/send', [
+            'target' => $target,
+            'message' => $message,
+        ]);
     }
 
     public function reqIzin(Request $request)

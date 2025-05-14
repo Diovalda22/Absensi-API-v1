@@ -8,9 +8,9 @@ COPY --chown=www-data:www-data . /app
 # 2. Install OS libs, build tools & PHP extensions in satu layer
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        libzip4 libpng16-16 libjpeg62-turbo libfreetype6 \
-        libzip-dev libpng-dev libjpeg-dev libfreetype6-dev \
-        build-essential nano git unzip \
+    libzip4 libpng16-16 libjpeg62-turbo libfreetype6 \
+    libzip-dev libpng-dev libjpeg-dev libfreetype6-dev \
+    build-essential nano git unzip \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) zip gd pcntl opcache pdo pdo_mysql \
     && pecl install redis \
@@ -42,4 +42,4 @@ RUN php artisan storage:link \
 RUN chown -R www-data:www-data storage bootstrap/cache
 
 EXPOSE 8000
-CMD ["php", "artisan", "octane:start", "--workers=14", "--server=frankenphp", "--host=0.0.0.0", "--port=8085"]
+CMD ["php", "artisan", "octane:start", "--workers=14", "--server=frankenphp", "--host=0.0.0.0", "--port=8000"]

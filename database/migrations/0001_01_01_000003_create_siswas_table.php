@@ -20,8 +20,10 @@ return new class extends Migration
             $table->string('noHP');
             $table->string('rfid_code');
             $table->unsignedBigInteger('kelas_id');
+            $table->unsignedBigInteger('orang_tua_id');
 
             $table->foreign('kelas_id')->references('id')->on('kelas')->cascadeOnDelete()->cascadeOnUpdate();
+            $table->foreign('orang_tua_id')->references('id')->on('orang_tua')->cascadeOnDelete()->cascadeOnUpdate();
         });
     }
 

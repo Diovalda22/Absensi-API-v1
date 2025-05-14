@@ -20,7 +20,9 @@ class SiswaSeeder extends Seeder
                 'tanggal_lahir' => '2007-02-02',
                 'jenis_kelamin' => 'laki-laki',
                 'noHP' => '081234567890',
+                'rfid_code' => '121212',
                 'kelas_id' => 1, // Pastikan ID kelas ini ada di tabel kelas
+                'orang_tua_id' => 1,
             ],
             [
                 'nisn' => 987654321,
@@ -28,7 +30,9 @@ class SiswaSeeder extends Seeder
                 'tanggal_lahir' => '2007-07-11',
                 'jenis_kelamin' => 'perempuan',
                 'noHP' => '089876543210',
+                'rfid_code' => '131313',
                 'kelas_id' => 2, // Pastikan ID kelas ini ada di tabel kelas
+                'orang_tua_id' => 2
             ],
         ]);
     }

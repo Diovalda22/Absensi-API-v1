@@ -291,8 +291,8 @@ class PresensiController extends Controller
     {
         $currentTime = Carbon::now('Asia/Jakarta');
         $tanggalFormatted = $currentTime->format('Y-m-d');
-        $waktuPulang = Carbon::parse('15:00:00', 'Asia/Jakarta');
-        $batasWaktuDatang = Carbon::parse('13:00:00', 'Asia/Jakarta');
+        $waktuPulang = Carbon::parse('20:00:00', 'Asia/Jakarta');
+        $batasWaktuDatang = Carbon::parse('17:00:00', 'Asia/Jakarta');
         $keterangan = $currentTime->greaterThanOrEqualTo($batasWaktuDatang) ? 'telat' : 'hadir';
 
         // Cek apakah ada input RFID, gunakan untuk mencari siswa

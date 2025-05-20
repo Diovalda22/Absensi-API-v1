@@ -291,9 +291,8 @@ class PresensiController extends Controller
     {
         $currentTime = Carbon::now('Asia/Jakarta');
         $tanggalFormatted = $currentTime->format('Y-m-d');
-        $waktuPulang = Carbon::parse('20:00:00', 'Asia/Jakarta');
-        $batasWaktuDatang = Carbon::parse('17:00:00', 'Asia/Jakarta');
-        $keterangan = $currentTime->greaterThanOrEqualTo($batasWaktuDatang) ? 'telat' : 'hadir';
+        $waktuPulang = Carbon::parse('15:00:00', 'Asia/Jakarta');
+        $batasWaktuDatang = Carbon::parse('07:00:00', 'Asia/Jakarta');
 
         // Cek apakah ada input RFID, gunakan untuk mencari siswa
         if ($request->has('rfid')) {
@@ -317,10 +316,10 @@ class PresensiController extends Controller
                 return response()->json(['message' => 'Anda sudah absen pulang hari ini.'], 422);
             } elseif ($currentTime->greaterThanOrEqualTo($waktuPulang)) {
                 $absen->update(['waktu_pulang' => $currentTime]);
-                $this->sendPresensiMessage($siswa_id, 'pulang', $currentTime, $keterangan);
-                return response()->json(['status' => 'pulang', 'message' => 'Berhasil Absen  Pulang', 'data' => $absen], 201);
+                $this->sendPresensiMessage($siswa_id, 'pulang', $currentTime, 'pulang'); // Tambahkan keterangan 'pulang'
+                return response()->json(['status' => 'pulang', 'message' => 'Berhasil Absen Pulang', 'data' => $absen], 201);
             } else {
-                return response()->json(['message' => 'Belum waktunya  pulang.'], 422);
+                return response()->json(['message' => 'Belum waktunya pulang.'], 422);
             }
         } else {
             // Presensi datang jika belum dilakukan
@@ -332,7 +331,7 @@ class PresensiController extends Controller
                 'waktu_datang' => $currentTime,
             ]);
             $this->sendPresensiMessage($siswa_id, 'datang', $currentTime, $keterangan);
-            return response()->json(['status' => 'datang', 'message' => 'Berhasil Absen  Datang', 'data' => $absen], 200);
+            return response()->json(['status' => 'datang', 'message' => 'Berhasil Absen Datang', 'data' => $absen], 200);
         }
 
         // Setelah jam pulang, tetapkan siswa yang belum absen sebagai alpha
@@ -358,33 +357,41 @@ class PresensiController extends Controller
     private function sendPresensiMessage($siswaId, $jenisPresensi, $waktu, $keterangan = null)
     {
         $siswa = Siswa::findOrFail($siswaId);
-        $orangTua = OrangTua::findOrFail($siswa->orang_tua_id); // Pastikan relasi sudah benar
-        $nomorTelepon = $orangTua->no_hp; // Sesuaikan dengan nama kolom yang benar
+        $orangTua = OrangTua::findOrFail($siswa->orang_tua_id);
+        $nomorTeleponOrangTua = $orangTua->no_telp;
+        $nomorTeleponSiswa = $siswa->noHP; // Pastikan kolom ini ada di tabel siswa
         $namaSiswa = $siswa->nama;
         $waktuFormatted = $waktu->format('H:i:s');
-        $pesan = '';
+        $pesanOrangTua = '';
+        $pesanSiswa = '';
 
         if ($jenisPresensi == 'datang') {
             $statusTambahan = '';
             if ($keterangan == 'telat') {
                 $statusTambahan = ' (terlambat)';
             }
-            $pesan = "Anak Anda, {$namaSiswa}, telah sampai di sekolah pada pukul {$waktuFormatted}{$statusTambahan}.";
+            $pesanOrangTua = "siswa/siswi atas nama: {$namaSiswa}, telah sampai di sekolah pada pukul {$waktuFormatted}{$statusTambahan}.";
+            $pesanSiswa = "Anda telah melakukan presensi datang pada pukul {$waktuFormatted}{$statusTambahan}."; // Pesan untuk siswa
         } elseif ($jenisPresensi == 'pulang') {
-            $pesan = "Anak Anda, {$namaSiswa}, telah pulang dari sekolah pada pukul {$waktuFormatted}.";
+            $pesanOrangTua = "siswa/siswi atas nama: {$namaSiswa}, telah pulang dari sekolah pada pukul {$waktuFormatted}.";
+            $pesanSiswa = "Anda telah melakukan presensi pulang pada pukul {$waktuFormatted}."; // Pesan untuk siswa
         }
 
-        // Gunakan fungsi yang sudah ada untuk mengirim pesan (dari contoh sebelumnya)
-        $this->sendFonnteMessage($nomorTelepon, $pesan);
+        // Kirim pesan ke siswa (jika nomor telepon siswa tersedia)
+        if ($nomorTeleponSiswa) {
+            $this->sendWaMessage($nomorTeleponSiswa, $pesanSiswa);
+            usleep(500000); // Jeda 0,5 detik (500000 microseconds)
+        }
+        // Gunakan fungsi yang sudah ada untuk mengirim pesan ke orang tua
+        $this->sendWaMessage($nomorTeleponOrangTua, $pesanOrangTua);
     }
 
-    private function sendFonnteMessage($target, $message)
+    private function sendWaMessage($target, $message)
     {
-
-        $response = Http::withHeaders([
-            'Authorization' => 'od15928msSxfMqurq1qi',
-        ])->post('https://api.fonnte.com/send', [
-            'target' => $target,
+        Http::withHeaders([
+            'Content-Type' => 'application/json',
+        ])->post('http://192.168.20.88:3000/send/message', [
+            'phone' => $target,
             'message' => $message,
         ]);
     }

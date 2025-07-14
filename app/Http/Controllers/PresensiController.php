@@ -390,7 +390,7 @@ class PresensiController extends Controller
     {
         Http::withHeaders([
             'Content-Type' => 'application/json',
-        ])->post('http://192.168.20.88:3000/send/message', [
+        ])->post('http://192.168.20.95:3212/send/message', [
             'phone' => $target,
             'message' => $message,
         ]);
